@@ -1,0 +1,53 @@
+﻿section,item,value,unit,reason / source
+factory,employees,250,people,company persona: Siam Precision Industries (Session 8)
+factory,workers per shift,73,people,(employees - office) / shifts
+factory,shifts,3,per day,PRD Shift A/B/C
+factory,office staff,31,people,"assumption, incl. 3 Japanese expatriates"
+factory,users,250,accounts,workers x shifts + office
+factory,peak online,177,people,two shifts overlap + office
+feature A,AI units,4224,per month,"1 unit = 3,000 tokens"
+feature A,speech-to-text,1643,min per month,
+feature A,new storage,1.84,GB per month,
+feature A,data out,33.1,GB per month,
+feature A,push notifications,6840,per month,free
+feature B,AI units,1307,per month,"1 unit = 3,000 tokens"
+feature B,speech-to-text,228,min per month,
+feature B,new storage,1.92,GB per month,
+feature B,data out,5.4,GB per month,
+feature B,push notifications,0,per month,free
+feature C,AI units,0,per month,"1 unit = 3,000 tokens"
+feature C,speech-to-text,0,min per month,
+feature C,new storage,0.01,GB per month,
+feature C,data out,0.5,GB per month,
+feature C,push notifications,0,per month,free
+feature D,AI units,72,per month,"1 unit = 3,000 tokens"
+feature D,speech-to-text,27,min per month,
+feature D,new storage,0.09,GB per month,
+feature D,data out,0.5,GB per month,
+feature D,push notifications,540,per month,free
+feature E,AI units,0,per month,"1 unit = 3,000 tokens"
+feature E,speech-to-text,0,min per month,
+feature E,new storage,0.00,GB per month,
+feature E,data out,0.0,GB per month,
+feature E,push notifications,250,per month,free
+feature F,AI units,20,per month,"1 unit = 3,000 tokens"
+feature F,speech-to-text,0,min per month,
+feature F,new storage,0.00,GB per month,
+feature F,data out,0.0,GB per month,
+feature F,push notifications,7000,per month,free
+feature G,AI units,93,per month,"1 unit = 3,000 tokens"
+feature G,speech-to-text,0,min per month,
+feature G,new storage,0.02,GB per month,
+feature G,data out,1.5,GB per month,
+feature G,push notifications,0,per month,free
+cost (month 12),"Server: API + AI worker (4 vCPU, 8 GB)",2800,THB per month,"฿2,800 / month x 1 (Session 10)"
+cost (month 12),Database: PostgreSQL appliance,1400,THB per month,"฿1,400 / month x 1 (Session 10)"
+cost (month 12),Object storage (month 12),337,THB per month,฿7 / GB x 48 GB (Session 10)
+cost (month 12),Sakura AI Engine,10003,THB per month,"฿1.75 / unit x 5,716 units (Session 10 (per answer))"
+cost (month 12),Speech-to-text,474,THB per month,"฿0.25 / min x 1,898 min (placeholder, confirm)"
+cost (month 12),Apple developer account,292,THB per month,"฿3,500 / year x 1/12 (≈ US$99)"
+cost (month 12),Push notifications (FCM / APNs),0,THB per month,"free x 14,630 (Google / Apple)"
+cost (month 12),"Endpoint gateway, data out",,THB per month,confirm with Sakura x 1 · 41 GB out (not in Session 10)
+cost (month 12),TOTAL,15306,THB per month,Session 10 example prices
+one-time,manual translation,5553,THB,3173 AI units
+one-time,Google Play,900,THB,≈ US$25
