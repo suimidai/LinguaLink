@@ -1,7 +1,10 @@
 import { TabList, TabSlot, TabTrigger, Tabs, type TabListProps, type TabTriggerSlotProps } from 'expo-router/ui';
+import { Image } from 'expo-image';
+import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View, type PressableProps } from 'react-native';
 
 import { Icon, type IconName } from '@/components/demo/icon';
+import { WelcomeModal } from '@/components/demo/welcome';
 import { useIsWide } from '@/components/demo/ui';
 import { Brand } from '@/constants/theme';
 import { useDemo } from '@/demo/demo-provider';
@@ -11,38 +14,48 @@ const PANEL = '#0F2A2E'; // control-room ink
 const PANEL_LINE = '#1E3B40';
 const PANEL_TEXT = '#9FB6BA';
 
-/** Web: dark control-room sidebar on big screens, light top bar on narrow windows. */
+const RAIL = 76;
+
+/**
+ * Web: dark control-room sidebar on big screens. On phone-size screens the same dark menu
+ * becomes a slim rail on the left (icon above a short label), so all pages stay one tap away.
+ */
 export default function AppTabs() {
   const wide = useIsWide();
-  const { state } = useDemo();
+  const { state, t } = useDemo();
   const reports = state?.jobs.filter((j) => j.stage === 'REPORTED').length ?? 0;
   const openJobs = state?.jobs.filter((j) => j.stage !== 'RESOLVED').length ?? 0;
+  // Same badges as the phone app: only this worker's jobs, unread notices, a fresh AI handover.
+  const myJobs = state?.jobs.filter((j) => j.assigneeId === state.phoneUserId && j.stage !== 'RESOLVED').length ?? 0;
+  const unacked = state?.announcements.filter((a) => a.requireAck && !a.phoneAcked).length ?? 0;
+  const latest = state?.handovers[0];
+  const newSummary = latest && state && state.now - latest.createdAt < 5 * 60_000;
 
   return (
     <Tabs>
-      <TabSlot style={wide ? { height: '100%', marginLeft: SIDEBAR } : { height: '100%', paddingTop: 56 }} />
+      <TabSlot style={{ height: '100%', marginLeft: wide ? SIDEBAR : RAIL }} />
       <TabList asChild>
         <Sidebar wide={wide}>
           <TabTrigger name="home" href="/" asChild>
-            <NavItem wide={wide} icon="dashboard" label={wide ? 'Dashboard' : 'Home'} badge={reports} />
+            <NavItem wide={wide} icon={wide ? 'dashboard' : 'home'} label={wide ? 'Dashboard' : t('tab.home')} badge={wide ? reports : 0} />
           </TabTrigger>
           <TabTrigger name="shift" href="/shift" asChild>
-            <NavItem wide={wide} icon="chat" label={wide ? 'Shift handover' : 'Shift'} />
+            <NavItem wide={wide} icon="chat" label={wide ? 'Shift handover' : t('tab.shift')} badge={wide || !newSummary ? 0 : 'AI'} />
           </TabTrigger>
           <TabTrigger name="jobs" href="/jobs" asChild>
-            <NavItem wide={wide} icon="jobs" label={wide ? 'Repair jobs' : 'Jobs'} badge={openJobs} badgeTone="neutral" />
+            <NavItem wide={wide} icon="jobs" label={wide ? 'Repair jobs' : t('tab.jobs')} badge={wide ? openJobs : myJobs} badgeTone={wide ? 'neutral' : 'alert'} />
           </TabTrigger>
           <TabTrigger name="knowledge" href="/knowledge" asChild>
-            <NavItem wide={wide} icon="bulb" label={wide ? 'Knowledge base' : 'Knowledge'} />
+            <NavItem wide={wide} icon="bulb" label={wide ? 'Knowledge base' : t('tab.knowledge')} />
           </TabTrigger>
           <TabTrigger name="announcements" href="/announcements" asChild>
-            <NavItem wide={wide} icon="announce" label={wide ? 'Announcements' : 'Notices'} />
+            <NavItem wide={wide} icon="announce" label={wide ? 'Announcements' : t('tab.notices')} badge={wide ? 0 : unacked} />
           </TabTrigger>
           <TabTrigger name="calendar" href="/calendar" asChild>
-            <NavItem wide={wide} icon="calendar" label="Calendar" />
+            <NavItem wide={wide} icon="calendar" label={wide ? 'Calendar' : t('calendarTitle')} />
           </TabTrigger>
           <TabTrigger name="manuals" href="/manuals" asChild>
-            <NavItem wide={wide} icon="manual" label="Manuals" />
+            <NavItem wide={wide} icon="manual" label={wide ? 'Manuals' : t('manualsTitle')} />
           </TabTrigger>
         </Sidebar>
       </TabList>
@@ -58,20 +71,39 @@ function NavItem({
   badge,
   badgeTone = 'alert',
   ...props
-}: TabTriggerSlotProps & { wide: boolean; icon: IconName; label: string; badge?: number; badgeTone?: 'alert' | 'neutral' }) {
-  const fg = wide ? (isFocused ? '#FFFFFF' : PANEL_TEXT) : isFocused ? Brand.tealDark : Brand.sub;
+}: TabTriggerSlotProps & { wide: boolean; icon: IconName; label: string; badge?: number | string; badgeTone?: 'alert' | 'neutral' }) {
+  const fg = isFocused ? '#FFFFFF' : PANEL_TEXT;
+  if (!wide) {
+    // Left rail item: icon above a short label, same dark style as the desktop sidebar.
+    return (
+      <Pressable {...(props as PressableProps)} style={({ pressed }) => [s.tab, isFocused && s.itemActive, pressed && { opacity: 0.7 }]} accessibilityLabel={label}>
+        {isFocused ? <View style={s.activeBar} /> : null}
+        <View style={s.tabIcon}>
+          <Icon name={icon} size={21} color={isFocused ? Brand.teal : fg} />
+          {badge ? (
+            <View style={[s.badge, s.tabBadge, badgeTone === 'neutral' && s.badgeNeutral]}>
+              <Text style={[s.badgeText, { fontSize: 10 }]}>{badge}</Text>
+            </View>
+          ) : null}
+        </View>
+        <Text numberOfLines={2} style={[s.tabText, { color: fg }, isFocused && { fontWeight: '700' }]}>
+          {label}
+        </Text>
+      </Pressable>
+    );
+  }
   return (
     <Pressable
       {...(props as PressableProps)}
       style={({ pressed, hovered }: { pressed: boolean; hovered?: boolean }) => [
-        wide ? s.item : s.itemNarrow,
-        hovered && !isFocused && (wide ? { backgroundColor: '#163539' } : { backgroundColor: Brand.canvas }),
-        isFocused && (wide ? s.itemActive : s.itemActiveNarrow),
+        s.item,
+        hovered && !isFocused && { backgroundColor: '#163539' },
+        isFocused && s.itemActive,
         pressed && { opacity: 0.8 },
       ]}>
-      {wide && isFocused ? <View style={s.activeBar} /> : null}
-      <Icon name={icon} size={wide ? 19 : 16} color={isFocused && wide ? Brand.teal : fg} />
-      <Text style={[wide ? s.itemText : s.itemTextNarrow, { color: fg }, isFocused && { fontWeight: '700' }]}>{label}</Text>
+      {isFocused ? <View style={s.activeBar} /> : null}
+      <Icon name={icon} size={19} color={isFocused ? Brand.teal : fg} />
+      <Text style={[s.itemText, { color: fg }, isFocused && { fontWeight: '700' }]}>{label}</Text>
       {badge ? (
         <View style={[s.badge, badgeTone === 'neutral' && s.badgeNeutral]}>
           <Text style={s.badgeText}>{badge}</Text>
@@ -81,51 +113,80 @@ function NavItem({
   );
 }
 
-function Sidebar({ wide, children, ...props }: TabListProps & { wide: boolean }) {
+/** Who is using this computer: their typed name (click to change), else the demo engineer Kenji. */
+function FooterUser() {
+  const { me, t } = useDemo();
+  const [renaming, setRenaming] = useState(false);
   return (
-    <View {...props} style={wide ? s.sidebar : s.topbar}>
+    <>
+      <Text style={s.footerName}>{me?.name ?? 'Kenji'}</Text>
+      {me ? (
+        <Pressable onPress={() => setRenaming(true)} accessibilityRole="button">
+          <Text style={[s.footerRole, { textDecorationLine: 'underline' }]}>{t('changeName')}</Text>
+        </Pressable>
+      ) : (
+        <Text style={s.footerRole}>Maintenance Engineer</Text>
+      )}
+      <WelcomeModal open={renaming} onClose={() => setRenaming(false)} />
+    </>
+  );
+}
+
+function Sidebar({ wide, children, ...props }: TabListProps & { wide: boolean }) {
+  if (!wide) {
+    return (
+      <View {...props} style={s.rail}>
+        <View style={[s.logo, { alignSelf: 'center', marginBottom: 6 }]}>
+          <Image source={require('@/assets/images/logo-mark.png')} style={s.logoImg} contentFit="contain" />
+        </View>
+        {children}
+      </View>
+    );
+  }
+  return (
+    <View {...props} style={s.sidebar}>
       <View style={s.brand}>
         <View style={s.logo}>
-          <Icon name="machine" size={20} color="#FFFFFF" />
+          <Image source={require('@/assets/images/logo-mark.png')} style={s.logoImg} contentFit="contain" />
         </View>
         <View>
-          <Text style={[s.brandName, !wide && { color: Brand.ink }]}>LinguaLink</Text>
-          {wide ? <Text style={s.brandSub}>MAIN PLANT · LINE 1–2</Text> : null}
+          <Text style={s.brandName}>LinguaLink</Text>
+          <Text style={s.brandSub}>MAIN PLANT · LINE 1–2</Text>
         </View>
       </View>
-      {wide ? <Text style={s.section}>OPERATIONS</Text> : null}
-      <View style={wide ? s.nav : s.navNarrow}>{children}</View>
-      {wide ? (
+      <Text style={s.section}>OPERATIONS</Text>
+      <View style={s.nav}>{children}</View>
+      {(
         <View style={s.footer}>
           <View style={s.liveRow}>
             <View style={s.liveDot} />
             <Text style={s.liveText}>LIVE · DEMO DATA</Text>
           </View>
-          <Text style={s.footerName}>Kenji</Text>
-          <Text style={s.footerRole}>Maintenance Engineer</Text>
+          <FooterUser />
         </View>
-      ) : null}
+      )}
     </View>
   );
 }
 
 const s = StyleSheet.create({
   sidebar: { position: 'absolute', left: 0, top: 0, bottom: 0, width: SIDEBAR, backgroundColor: PANEL, paddingVertical: 24, paddingHorizontal: 16, gap: 16 },
-  topbar: { position: 'absolute', left: 0, right: 0, top: 0, height: 56, backgroundColor: '#FFFFFF', borderBottomWidth: 1, borderBottomColor: Brand.border, paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', gap: 12 },
+  rail: { position: 'absolute', left: 0, top: 0, bottom: 0, width: RAIL, backgroundColor: PANEL, paddingVertical: 14, paddingHorizontal: 6, gap: 4, zIndex: 10 },
+  tab: { alignItems: 'center', justifyContent: 'center', gap: 3, paddingVertical: 8, paddingHorizontal: 2, borderRadius: 8, overflow: 'hidden' },
+  tabIcon: { width: 40, height: 26, alignItems: 'center', justifyContent: 'center' },
+  tabText: { fontSize: 10, fontWeight: '600', textAlign: 'center', lineHeight: 12 },
+  tabBadge: { position: 'absolute', top: -4, right: -2, minWidth: 18, height: 16, borderRadius: 8, paddingHorizontal: 4 },
   brand: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 8, paddingBottom: 8 },
-  logo: { width: 36, height: 36, borderRadius: 8, backgroundColor: Brand.teal, alignItems: 'center', justifyContent: 'center' },
+  logo: { width: 40, height: 40, borderRadius: 10, backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center' },
+  logoImg: { width: 32, height: 32 },
   brandName: { fontSize: 19, fontWeight: '800', color: '#FFFFFF', letterSpacing: -0.3 },
   brandSub: { fontSize: 10, fontWeight: '700', letterSpacing: 1.2, color: PANEL_TEXT, marginTop: 2 },
   section: { fontSize: 10, fontWeight: '800', letterSpacing: 1.6, color: '#5F7C81', paddingHorizontal: 12, marginTop: 8 },
   nav: { gap: 2 },
-  navNarrow: { flexDirection: 'row', gap: 2, flex: 1, flexWrap: 'wrap' },
   item: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10, paddingHorizontal: 12, borderRadius: 8, overflow: 'hidden' },
-  itemNarrow: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 6, paddingHorizontal: 8, borderRadius: 6 },
   itemActive: { backgroundColor: '#17393E' },
-  itemActiveNarrow: { backgroundColor: Brand.mint },
   activeBar: { position: 'absolute', left: 0, top: 8, bottom: 8, width: 3, borderRadius: 2, backgroundColor: Brand.teal },
   itemText: { flex: 1, fontSize: 15, fontWeight: '500' },
-  itemTextNarrow: { fontSize: 13, fontWeight: '600' },
   badge: { minWidth: 22, height: 20, borderRadius: 6, backgroundColor: Brand.red, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 6 },
   badgeNeutral: { backgroundColor: '#2C4F55' },
   badgeText: { color: '#FFFFFF', fontSize: 12, fontWeight: '800', fontVariant: ['tabular-nums'] },

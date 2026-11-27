@@ -41,3 +41,6 @@ example
 # generated native folders
 /ios
 /android
+
+# phone screenshots dropped in the project folder
+Screenshot_*

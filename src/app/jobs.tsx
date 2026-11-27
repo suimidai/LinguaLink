@@ -4,6 +4,8 @@ import { StyleSheet, View } from 'react-native';
 
 import { Icon } from '@/components/demo/icon';
 import { JobBoard, JobRow, JobStepper } from '@/components/demo/jobs';
+import { ManualModal } from '@/components/demo/manual-modal';
+import { ReportProblemButton } from '@/components/demo/report-problem';
 import { Body, Button, Card, Chip, H2, Label, Muted, Screen, useIsWide } from '@/components/demo/ui';
 import { Brand } from '@/constants/theme';
 import { useDemo } from '@/demo/demo-provider';
@@ -14,9 +16,10 @@ import { personName } from '@/demo/mock/people';
 import type { Job } from '@/demo/types';
 
 function MyJob({ job }: { job: Job }) {
-  const { state, act, t } = useDemo();
+  const { state, act, t, lang } = useDemo();
   const [cause, setCause] = useState(job.rootCauseOptions[0]);
   const [parts, setParts] = useState<string[]>([SPARE_PARTS[0]]);
+  const [manual, setManual] = useState<string | null>(null);
   const m = state?.machines.find((x) => x.id === job.machineId);
 
   return (
@@ -24,12 +27,12 @@ function MyJob({ job }: { job: Job }) {
       <Label>
         {machineName(t, m?.label)} · {m ? t(m.typeKey) : ''} · {m?.code}
       </Label>
-      <H2>{jobTitle(job, t)}</H2>
+      <H2>{jobTitle(job, t, lang)}</H2>
       <JobStepper stage={job.stage} />
       <View style={s.diag}>
         <Icon name="translate" size={15} color={Brand.tealDark} />
         <Body style={{ fontSize: 14, flex: 1 }}>
-          {t('reportedProblem')}: “{jobReport(job, t)}” · {t('reportedBy', { name: personName(state?.people ?? [], job.reportedBy) })}
+          {t('reportedProblem')}: “{jobReport(job, t, lang)}” · {t('reportedBy', { name: personName(state?.people ?? [], job.reportedBy) })}
         </Body>
       </View>
       <View style={s.chips}>
@@ -45,10 +48,11 @@ function MyJob({ job }: { job: Job }) {
             variant="secondary"
             icon="manual"
             label={t('openManual')}
-            onPress={() => router.push({ pathname: '/knowledge', params: { manual: m.manualIds[0] } })}
+            onPress={() => setManual(m.manualIds[0])}
           />
         ) : null}
       </View>
+      <ManualModal manualId={manual} onClose={() => setManual(null)} />
 
       {job.stage === 'ASSIGNED' ? (
         <Button icon="play" label={t('startRepair')} onPress={() => act({ type: 'start', jobId: job.id })} />
@@ -86,7 +90,7 @@ export default function JobsScreen() {
 
   if (wide) {
     return (
-      <Screen eyebrow="Maintenance" title="Repair jobs" subtitle="Every job from operator report to fixed, tracked live">
+      <Screen eyebrow="Maintenance" title="Repair jobs" subtitle="Every job from operator report to fixed, tracked live" right={<ReportProblemButton />}>
         <JobBoard />
       </Screen>
     );
@@ -98,6 +102,7 @@ export default function JobsScreen() {
 
   return (
     <Screen eyebrow={t('maintenance')} title={t('myJobs')} subtitle={t('myJobsSub')}>
+      <ReportProblemButton style={{ alignSelf: 'flex-start' }} />
       {active.length === 0 ? (
         <Card tone="sunken">
           <Muted>{t('noJobs')}</Muted>

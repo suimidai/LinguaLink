@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { Pressable, StyleSheet, Text, TextInput, useWindowDimensions, View } from 'react-native';
 
 import { Brand, Fonts } from '@/constants/theme';
 import { useDemo } from '@/demo/demo-provider';
@@ -68,23 +68,32 @@ function ClipPlayer({ clip, onClose }: { clip: Clip; onClose: () => void }) {
   );
 }
 
+type Cite = { entryId: string; at: number };
+
+/** What was asked and the answer: senior-tip moments (from Gemini, or the scripted matcher). */
+type Asked = { text: string; cites?: Cite[]; summary?: string; ai?: boolean };
+
+const scripted = (text: string, q?: KbQuestion): Asked => ({ text, cites: (q ?? matchQuestion(text))?.cites });
+
 /** AI direct answer: built only from cited senior tips, never guessed (PRD FR-KB-02). */
-function Answer({ question, asked, onOpen }: { question?: KbQuestion; asked: string; onOpen: (c: Clip) => void }) {
+function Answer({ asked, onOpen }: { asked: Asked; onOpen: (c: Clip) => void }) {
   const { state, lang, t } = useDemo();
   if (!state) return null;
-  if (!question) {
+  const cites = asked.cites ?? [];
+  if (!cites.length) {
     return (
       <Card tone="warning">
-        <Body style={{ fontWeight: '700' }}>“{asked}”</Body>
+        <Body style={{ fontWeight: '700' }}>“{asked.text}”</Body>
         <Body>{t('noSource')}</Body>
       </Card>
     );
   }
   return (
     <Card tone="accent">
-      <Body style={{ fontWeight: '700' }}>“{asked}”</Body>
-      <Tag label={t('aiAnswer')} color={Brand.tealDark} icon="ai" />
-      {question.cites.map((c, i) => {
+      <Body style={{ fontWeight: '700' }}>“{asked.text}”</Body>
+      <Tag label={asked.ai ? `${t('aiAnswer')} · Gemini` : t('aiAnswer')} color={Brand.tealDark} icon="ai" />
+      {asked.summary ? <Body>{asked.summary}</Body> : null}
+      {cites.map((c, i) => {
         const entry = state.knowledge.find((k) => k.id === c.entryId);
         const seg = entry?.segments.find((sg) => sg.at === c.at);
         if (!entry || !seg) return null;
@@ -163,12 +172,16 @@ function AddKnowledge() {
 export function KnowledgeBase({ initialQuestion }: { initialQuestion?: string }) {
   const { state, lang, t } = useDemo();
   const wide = useIsWide();
+  // Small screens: icon-only Ask button so the question box keeps most of the width.
+  const compactAsk = useWindowDimensions().width < 520;
   const preset = QUESTIONS.find((q) => q.id === initialQuestion);
   const [text, setText] = useState(preset ? preset.text[lang] : '');
-  const [asked, setAsked] = useState<{ text: string; q?: KbQuestion } | null>(preset ? { text: preset.text[lang], q: preset } : null);
+  const [asked, setAsked] = useState<Asked | null>(preset ? scripted(preset.text[lang], preset) : null);
   const [clip, setClip] = useState<Clip | null>(null);
-  // The scripted AI "searches" for a moment before answering.
+  // Suggested questions use the scripted answer after a short "search" (fast and reliable on stage).
   const [thinking, setThinking] = useState(!!preset);
+  const [waitingAi, setWaitingAi] = useState(false);
+  const askSeq = useRef(0);
   useEffect(() => {
     if (!thinking) return;
     const id = setTimeout(() => setThinking(false), THINK_MS);
@@ -176,12 +189,36 @@ export function KnowledgeBase({ initialQuestion }: { initialQuestion?: string })
   }, [thinking, asked]);
   if (!state) return null;
 
-  const ask = (value: string, q?: KbQuestion) => {
+  const ask = async (value: string, q?: KbQuestion) => {
     if (!value.trim()) return;
+    const seq = ++askSeq.current;
     setText(value);
     setClip(null);
-    setAsked({ text: value, q: q ?? matchQuestion(value) });
-    setThinking(true);
+    if (q) {
+      setWaitingAi(false);
+      setAsked(scripted(value, q));
+      setThinking(true);
+      return;
+    }
+    // Free questions go to Gemini, which answers only from the senior tips.
+    setAsked({ text: value });
+    setWaitingAi(true);
+    let answer: Asked;
+    try {
+      const res = await fetch('/api/ask', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ question: value, lang }),
+      });
+      if (!res.ok) throw new Error(String(res.status));
+      const data = (await res.json()) as { answerable: boolean; summary: string; cites: Cite[] };
+      answer = { text: value, cites: data.answerable ? data.cites : [], summary: data.answerable ? data.summary : undefined, ai: true };
+    } catch {
+      answer = scripted(value); // no key / no internet: keyword matcher, as before
+    }
+    if (seq !== askSeq.current) return; // a newer question was asked meanwhile
+    setAsked(answer);
+    setWaitingAi(false);
   };
 
   const askBox = (
@@ -197,7 +234,14 @@ export function KnowledgeBase({ initialQuestion }: { initialQuestion?: string })
           onSubmitEditing={() => ask(text)}
           returnKeyType="search"
         />
-        <Button icon="search" label={t('ask')} onPress={() => ask(text)} disabled={!text.trim()} />
+        <Button
+          icon="search"
+          label={compactAsk ? undefined : t('ask')}
+          a11yLabel={t('ask')}
+          onPress={() => ask(text)}
+          disabled={!text.trim()}
+          style={[s.askBtn, compactAsk && s.askBtnCompact]}
+        />
       </View>
       <View style={s.wrap}>
         <Button small variant="secondary" icon="mic" label={t('speak')} onPress={() => ask(QUESTIONS[0].text[lang], QUESTIONS[0])} />
@@ -212,12 +256,12 @@ export function KnowledgeBase({ initialQuestion }: { initialQuestion?: string })
   );
 
   const result = asked ? (
-    thinking ? (
+    thinking || waitingAi ? (
       <Card tone="sunken">
         <Muted>{t('aiSearching')}</Muted>
       </Card>
     ) : (
-      <Answer question={asked.q} asked={asked.text} onOpen={setClip} />
+      <Answer asked={asked} onOpen={setClip} />
     )
   ) : null;
 
@@ -259,7 +303,9 @@ const s = StyleSheet.create({
   cols: { flexDirection: 'row', gap: 24, alignItems: 'flex-start' },
   wrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, alignItems: 'center' },
   inputRow: { flexDirection: 'row', gap: 8, alignItems: 'center' },
-  input: { flex: 1, minHeight: 44, borderWidth: 1, borderColor: Brand.border, borderRadius: 8, paddingHorizontal: 12, fontSize: 15, color: Brand.ink, backgroundColor: '#FFFFFF' },
+  askBtn: { minHeight: 44, flexShrink: 0 },
+  askBtnCompact: { width: 44, paddingHorizontal: 0 },
+  input: { flex: 1, minWidth: 0, minHeight: 44, borderWidth: 1, borderColor: Brand.border, borderRadius: 8, paddingHorizontal: 12, fontSize: 15, color: Brand.ink, backgroundColor: '#FFFFFF' },
   step: { flexDirection: 'row', gap: 10, alignItems: 'flex-start' },
   stepNo: { width: 24, height: 24, borderRadius: 12, backgroundColor: Brand.teal, color: '#FFFFFF', textAlign: 'center', lineHeight: 24, fontWeight: '800', fontSize: 13, overflow: 'hidden' },
   cite: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#BFE9E3', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4 },

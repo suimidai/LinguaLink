@@ -15,20 +15,24 @@ export function localizeNotification(n: PhoneNotification, state: DemoState | nu
       ...p,
       machine: machineName(t, String(p.machine ?? '')),
       group: groupName(t, String(p.group ?? '')),
-      title: p.pb !== undefined ? t(`pb.${p.pb}.title`) : '',
+      title: (() => {
+        const job = n.jobId ? state?.jobs.find((j) => j.id === n.jobId) : undefined;
+        if (job?.custom) return job.custom.title[lang];
+        return p.pb !== undefined ? t(`pb.${p.pb}.title`) : '';
+      })(),
     };
     return { title: t(`${n.key}.t`, params), body: t(`${n.key}.b`, params) };
   }
   return { title: n.title, body: n.body };
 }
 
-export function jobTitle(job: Pick<Job, 'pb'>, t: TFunction) {
-  return t(`pb.${job.pb}.title`);
+export function jobTitle(job: Pick<Job, 'pb' | 'custom'>, t: TFunction, lang: Lang = 'en') {
+  return job.custom?.title[lang] ?? t(`pb.${job.pb}.title`);
 }
 
 /** What the person wrote when reporting the problem (auto-translated). */
-export function jobReport(job: Pick<Job, 'pb'>, t: TFunction) {
-  return t(`pb.${job.pb}.text`);
+export function jobReport(job: Pick<Job, 'pb' | 'custom'>, t: TFunction, lang: Lang = 'en') {
+  return job.custom?.text[lang] ?? t(`pb.${job.pb}.text`);
 }
 
 export function eventText(e: CalendarEvent, t: TFunction) {

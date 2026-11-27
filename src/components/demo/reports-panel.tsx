@@ -12,7 +12,7 @@ import { Body, Button, Card, Chip, H2, Label, Muted, Tag, timeAgo } from './ui';
 
 /** Problems reported by people on the floor. The supervisor assigns a technician. */
 export function ReportsPanel() {
-  const { state, act, t } = useDemo();
+  const { state, act, t, lang } = useDemo();
   const [picked, setPicked] = useState<Record<string, string>>({});
   if (!state) return null;
 
@@ -40,11 +40,11 @@ export function ReportsPanel() {
               <Tag label={`Reported · ${m?.label}`} color={Brand.redDark} icon="report" />
               <Muted>{timeAgo(j.createdAt, state.now)}</Muted>
             </View>
-            <H2>{jobTitle(j, t)}</H2>
+            <H2>{jobTitle(j, t, lang)}</H2>
             <View style={s.quote}>
               <Icon name="translate" size={14} color={Brand.tealDark} />
               <Body style={{ fontSize: 14, flex: 1 }}>
-                “{jobReport(j, t)}” {reporter ? `· ${reporter.name} (${LANGS.find((l) => l.code === reporter.lang)?.label}, auto-translated)` : ''}
+                “{jobReport(j, t, lang)}” {reporter ? `· ${reporter.name} (${LANGS.find((l) => l.code === reporter.lang)?.label}, auto-translated)` : ''}
               </Body>
             </View>
             <Label>{m?.group}: assign a technician</Label>

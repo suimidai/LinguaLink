@@ -3,7 +3,7 @@ import { NativeTabs } from 'expo-router/native-tabs';
 import { Brand } from '@/constants/theme';
 import { useDemo } from '@/demo/demo-provider';
 
-/** Phone: 5 bottom tabs (PRD §3.2). Calendar sits on Home; manuals sit inside Knowledge. */
+/** Phone: 5 bottom tabs (PRD §3.2). Calendar sits on Home; manuals open from repair jobs (pop-up). */
 export default function AppTabs() {
   const { state, t } = useDemo();
   const myActiveJobs = state?.jobs.filter((j) => j.assigneeId === state.phoneUserId && j.stage !== 'RESOLVED').length ?? 0;

@@ -189,4 +189,22 @@ sequenceDiagram
 
 ## 4. How the demo app maps to this
 
-The demo (`npx expo start`) fakes the backend with an in-memory store (`src/demo/server/store.ts`, served by `src/app/api/*`). The web dashboard and the phone poll it every 1.5 s. All "AI" is scripted: summaries are built from the real checklist, chat and jobs; knowledge answers come from a keyword matcher over the mock tips (`src/demo/mock/knowledge.ts`); translations are pre-written in `src/demo/mock/*` and `src/demo/i18n*.ts`.
+The demo (`npx expo start`) runs a small backend in its API routes (`src/app/api/*`). The web dashboard and the phone poll `/api/state` every 1.5 s.
+
+- **Store** (`src/demo/server/store.ts`): the demo state. When `MONGODB_URI` is set, it is loaded from and saved to MongoDB on every request (`src/demo/server/db.ts`):
+  - collection `state`: one document, with a version check so two servers or judges can't overwrite each other;
+  - collection `messages`: the shift chat;
+  - collection `usage`: the daily AI-call counter.
+
+  Without `MONGODB_URI` it stays in memory.
+- **AI** (`src/demo/server/ai.ts`, server only): Gemini API (`gemini-3.8-flash` by default, `GEMINI_MODEL` to change; JSON output) for:
+  - translating free-typed chat into TH/EN/MY/KM/LO/JA and flagging *Watch out* messages;
+  - writing the shift handover from the real checklist, chat and jobs;
+  - answering *Ask a senior* questions (`/api/ask`) only from cited senior-tip moments. Cites that don't exist are dropped.
+- **Fallback:** with no `GEMINI_API_KEY`, no internet or the daily cap reached, the scripted demo AI is used:
+  - handover lists built from the checklist and chat;
+  - a keyword matcher over `src/demo/mock/knowledge.ts`;
+  - pre-written translations in `src/demo/mock/*` and `src/demo/i18n*.ts`.
+- **Machine live** is a beta feature. It opens from the dashboard's *Machine live · Beta* button (`src/components/demo/machine-live.tsx`).
+
+Setup: `docs/demo/AI-SETUP.md`.

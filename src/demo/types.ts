@@ -12,7 +12,7 @@ export const LANGS: { code: Lang; label: string; native: string }[] = [
   { code: 'ja', label: 'JA', native: '日本語' },
 ];
 
-export type Role = 'ENGINEER' | 'SUPERVISOR' | 'TECHNICIAN' | 'HR' | 'OPERATOR' | 'SENIOR';
+export type Role = 'ENGINEER' | 'SUPERVISOR' | 'TECHNICIAN' | 'HR' | 'OPERATOR' | 'SENIOR' | 'GUEST';
 
 export interface Person {
   id: string;
@@ -55,6 +55,8 @@ export interface Job {
   updatedAt: number;
   rootCause?: string;
   partsUsed?: string[];
+  /** A report in the person's own words (from the Report button or the chat), auto-translated. */
+  custom?: { title: Translated; text: Translated };
 }
 
 export interface AnnouncementPreset {
@@ -130,7 +132,13 @@ export interface ChatMessage {
   text: Translated;
   /** False for free-typed text the mock translator doesn't know. */
   translated: boolean;
+  /** Saved, translation on its way (shows "Translating…"). */
+  pending?: boolean;
+  /** The AI tried to translate it and failed (not retried automatically). */
+  aiTried?: boolean;
   watchOut?: boolean;
+  /** Gemini spotted the warning by itself (the writer didn't press "Watch out"). */
+  aiFlagged?: boolean;
   /** Short line for the AI summary's "Watch out" list. */
   watch?: Translated;
   durationSec?: number;
@@ -146,6 +154,10 @@ export interface ChecklistItem {
   id: string;
   label: Translated;
   done: boolean;
+  /** Ticked by the AI from a chat message (not by tapping). */
+  viaChat?: boolean;
+  /** Added by the AI from a chat message, by this person. */
+  addedBy?: string;
   doneBy?: string;
   doneAt?: number;
 }
@@ -157,9 +169,23 @@ export interface HandoverSummary {
   done: Translated[];
   todo: Translated[];
   watchOut: Translated[];
+  /** Written by Gemini from the real shift data (false = scripted fallback). */
+  ai?: boolean;
   createdAt: number;
   /** The "AI" shows a short "summarizing…" state until this time. */
   readyAt: number;
+}
+
+export interface LiveSummary {
+  shift: string;
+  done: Translated[];
+  todo: Translated[];
+  watchOut: Translated[];
+  /** false = scripted (no AI available). */
+  ai: boolean;
+  /** Which shift data it was written from (to skip repeat AI calls). */
+  basedOn: string;
+  updatedAt: number;
 }
 
 // ---- Senior Knowledge Base ----
@@ -199,11 +225,16 @@ export interface DemoState {
   chat: ChatMessage[];
   checklist: ChecklistItem[];
   handovers: HandoverSummary[];
+  /** AI summary of the shift so far, rewritten after every message / tick. */
+  liveSummary?: LiveSummary;
+  /** Tasks the AI took from chat for the next shift; added to its checklist when the shift ends. */
+  nextShiftTasks?: ChecklistItem[];
   knowledge: KnowledgeEntry[];
 }
 
 export type DemoAction =
-  | { type: 'report'; machineId?: string; pb?: number; reporterId?: string }
+  | { type: 'report'; machineId?: string; pb?: number; reporterId?: string; text?: string; lang?: Lang }
+  | { type: 'join'; userId: string; name: string; lang: Lang }
   | { type: 'assign'; jobId: string; technicianId: string }
   | { type: 'start'; jobId: string }
   | { type: 'resolve'; jobId: string; rootCause: string; parts: string[] }
@@ -214,3 +245,43 @@ export type DemoAction =
   | { type: 'endShift' }
   | { type: 'addKnowledge'; presetId: string }
   | { type: 'reset' };
+
+// ---- Uploaded manuals (PDF / Word / photos), translated on request ----
+
+export type ManualBlockType = 'paragraph' | 'step' | 'warning' | 'table';
+
+export interface ManualBlock {
+  type: ManualBlockType;
+  text: string;
+  /** Only for tables: rows of cells (first row = header). */
+  rows: string[][];
+}
+
+export interface ManualContent {
+  title: string;
+  sections: { heading: string; blocks: ManualBlock[] }[];
+}
+
+export type UploadKind = 'pdf' | 'docx' | 'images';
+
+/** What the manual list shows (no content). */
+export interface UploadedManualSummary {
+  id: string;
+  fileName: string;
+  kind: UploadKind;
+  size: number;
+  pages: number;
+  uploadedBy: string;
+  uploadedAt: number;
+  status: 'reading' | 'ready' | 'failed';
+  error?: string;
+  sourceLang?: Lang;
+  title?: string;
+  /** Languages already translated and saved. */
+  langs: Lang[];
+}
+
+export interface UploadedManual extends UploadedManualSummary {
+  doc?: ManualContent;
+  translations: Partial<Record<Lang, ManualContent>>;
+}

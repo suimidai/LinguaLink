@@ -9,12 +9,15 @@ import { LANGS, type Lang } from '@/demo/types';
 
 import { Icon } from './icon';
 import { PdfManualViewer } from './pdf-manual';
-import { Body, Card, H2, LangPicker, Muted, Tag, useIsWide } from './ui';
+import { UploadedManualItem, UploadedManualView, UploadManualButton, useUploadedManuals } from './uploaded-manuals';
+import { Body, Card, H2, Label, LangPicker, Muted, Tag, useIsWide } from './ui';
 
 export function ManualViewer({ initialId }: { initialId?: string }) {
   const { lang: deviceLang, t } = useDemo();
   const wide = useIsWide();
   const [manualId, setManualId] = useState(initialId === PDF_MANUAL_ID || MANUALS.some((m) => m.id === initialId) ? initialId! : PDF_MANUAL_ID);
+  const { list: uploads, refresh: refreshUploads } = useUploadedManuals();
+  const uploadedOpen = manualId.startsWith('up-');
   // Follows the app language; picking a language here overrides it for this screen only.
   const [override, setLang] = useState<Lang | null>(null);
   const lang = override ?? deviceLang;
@@ -48,9 +51,30 @@ export function ManualViewer({ initialId }: { initialId?: string }) {
             </Card>
           </Pressable>
         ))}
+        <Label icon="upload">{t('uploadedManuals')}</Label>
+        <UploadManualButton
+          onUploaded={(m) => {
+            void refreshUploads();
+            setManualId(m.id);
+          }}
+        />
+        {uploads.map((m) => (
+          <UploadedManualItem key={m.id} m={m} selected={m.id === manualId} onPress={() => setManualId(m.id)} />
+        ))}
       </View>
 
-      {manualId === PDF_MANUAL_ID ? (
+      {uploadedOpen ? (
+        <View style={wide ? { flex: 1 } : undefined}>
+          <UploadedManualView
+            key={manualId}
+            id={manualId}
+            onRemoved={() => {
+              setManualId(PDF_MANUAL_ID);
+              void refreshUploads();
+            }}
+          />
+        </View>
+      ) : manualId === PDF_MANUAL_ID ? (
         <View style={wide ? { flex: 1 } : undefined}>
           <PdfManualViewer />
         </View>

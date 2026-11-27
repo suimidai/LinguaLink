@@ -33,7 +33,7 @@ export function JobStepper({ stage }: { stage: JobStage }) {
 }
 
 export function JobRow({ job }: { job: Job }) {
-  const { state, t } = useDemo();
+  const { state, t, lang } = useDemo();
   if (!state) return null;
   const m = state.machines.find((x) => x.id === job.machineId);
   const resolved = job.stage === 'RESOLVED';
@@ -43,7 +43,7 @@ export function JobRow({ job }: { job: Job }) {
       <View style={s.rowTop}>
         <View style={{ flex: 1, gap: 2 }}>
           <H2 style={{ fontSize: 16 }}>
-            {jobTitle(job, t)} ({machineName(t, m?.label)})
+            {jobTitle(job, t, lang)} ({machineName(t, m?.label)})
           </H2>
           <Muted>
             {groupName(t, m?.group)} · {timeAgo(job.createdAt, state.now, t)}

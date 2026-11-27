@@ -9,6 +9,7 @@ import { Brand } from '@/constants/theme';
  */
 const ICONS = {
   dashboard: { ios: 'square.grid.2x2', android: 'dashboard', web: 'dashboard' },
+  home: { ios: 'house.fill', android: 'home', web: 'home' },
   jobs: { ios: 'wrench.and.screwdriver', android: 'build', web: 'build' },
   announce: { ios: 'megaphone', android: 'campaign', web: 'campaign' },
   calendar: { ios: 'calendar', android: 'calendar_month', web: 'calendar_month' },
@@ -43,6 +44,7 @@ const ICONS = {
   translate: { ios: 'character.bubble', android: 'translate', web: 'translate' },
   video: { ios: 'video.fill', android: 'videocam', web: 'videocam' },
   upload: { ios: 'square.and.arrow.up', android: 'upload', web: 'upload' },
+  download: { ios: 'square.and.arrow.down', android: 'download', web: 'download' },
   close: { ios: 'xmark', android: 'close', web: 'close' },
   search: { ios: 'magnifyingglass', android: 'search', web: 'search' },
 } satisfies Record<string, SymbolViewProps['name']>;

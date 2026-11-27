@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { router } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
@@ -10,6 +11,8 @@ import type { NotificationKind } from '@/demo/types';
 
 import { Icon, type IconName } from './icon';
 import { MonthCalendar } from './month-calendar';
+import { ReportProblemButton } from './report-problem';
+import { WelcomeModal } from './welcome';
 import { HandoverCard } from './shift-chat';
 import { Body, Button, Card, H2, Label, LangPicker, Muted, Screen, Tag, timeAgo } from './ui';
 
@@ -23,7 +26,8 @@ export const KIND_ICON: Record<NotificationKind, IconName> = {
 
 /** Phone home screen for a technician on the shop floor. Every text follows the chosen language. */
 export function PhoneHome() {
-  const { state, lang, setLang, act, t } = useDemo();
+  const { state, lang, setLang, act, t, me: person } = useDemo();
+  const [renaming, setRenaming] = useState(false);
   const me = state?.people.find((p) => p.id === state.phoneUserId);
   const myJob = state?.jobs.find((j) => j.assigneeId === state.phoneUserId && j.stage !== 'RESOLVED');
   const jobMachine = state?.machines.find((m) => m.id === myJob?.machineId);
@@ -32,14 +36,16 @@ export function PhoneHome() {
   const partsReady = state?.notifications.filter((n) => n.kind === 'PARTS').length ?? 0;
 
   return (
-    <Screen eyebrow={`${t('role.tech')} · ${t('mainPlant')}`} title={t('hello', { name: me?.name ?? '' })}>
+    <Screen eyebrow={`${t('role.tech')} · ${t('mainPlant')}`} title={t('hello', { name: person?.name ?? me?.name ?? '' })}>
+      <ReportProblemButton style={{ alignSelf: 'flex-start' }} />
+      <WelcomeModal open={renaming} onClose={() => setRenaming(false)} />
       {myJob ? (
         <Card tone={myJob.stage === 'ASSIGNED' ? 'danger' : 'warning'}>
           <Tag label={myJob.stage === 'ASSIGNED' ? t('newJob') : t('inProgress')} color={myJob.stage === 'ASSIGNED' ? Brand.redDark : '#9A6700'} icon="jobs" />
           <H2>
-            {machineName(t, jobMachine?.label)}: {jobTitle(myJob, t)}
+            {machineName(t, jobMachine?.label)}: {jobTitle(myJob, t, lang)}
           </H2>
-          <Body style={{ fontSize: 14 }}>“{jobReport(myJob, t)}”</Body>
+          <Body style={{ fontSize: 14 }}>“{jobReport(myJob, t, lang)}”</Body>
           <Button icon="arrowRight" label={t('openJob')} variant={myJob.stage === 'ASSIGNED' ? 'danger' : 'primary'} onPress={() => router.push('/jobs')} />
         </Card>
       ) : null}
@@ -80,6 +86,14 @@ export function PhoneHome() {
       <Card>
         <Label icon="globe">{t('appLanguage')}</Label>
         <LangPicker value={lang} onChange={setLang} />
+        {person ? (
+          <Muted>
+            {t('signedInAs', { name: person.name })} ·{' '}
+            <Text style={{ color: Brand.tealDark, fontWeight: '700' }} onPress={() => setRenaming(true)}>
+              {t('changeName')}
+            </Text>
+          </Muted>
+        ) : null}
       </Card>
 
       <Label icon="calendar">{t('calendarTitle')}</Label>

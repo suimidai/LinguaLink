@@ -10,7 +10,7 @@ import { Button, Card, Muted, STATUS_STYLE, Tag } from './ui';
 
 /** Machine status is set by people (reports, repairs). No live AI telemetry in v2. */
 export function MachineCard({ machine }: { machine: Machine }) {
-  const { state, act, t } = useDemo();
+  const { state, act, t, lang } = useDemo();
   const st = STATUS_STYLE[machine.status];
   const critical = machine.status === 'CRITICAL';
   const job = state?.jobs.find((j) => j.machineId === machine.id && j.stage !== 'RESOLVED');
@@ -27,7 +27,7 @@ export function MachineCard({ machine }: { machine: Machine }) {
       </View>
       {job && state ? (
         <Muted>
-          {jobTitle(job, t)} · reported by {personName(state.people, job.reportedBy)}
+          {jobTitle(job, t, lang)} · reported by {personName(state.people, job.reportedBy)}
           {job.assigneeId ? ` · ${personName(state.people, job.assigneeId)} on it` : ''}
         </Muted>
       ) : (

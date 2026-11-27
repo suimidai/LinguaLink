@@ -1,5 +1,5 @@
 import { router } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { Brand } from '@/constants/theme';
@@ -12,19 +12,19 @@ import { LANGS, type ChatMessage, type HandoverSummary, type Translated } from '
 import { Icon, type IconName } from './icon';
 import { Body, Button, Card, Chip, Label, Muted, ProgressBar, Tag, timeAgo, useIsWide } from './ui';
 
-/** Who is typing on this device: the phone user, or engineer Kenji on the web dashboard. */
+/** Who is typing on this device: the person who typed their name, else the demo phone user / engineer Kenji. */
 export function useMe() {
-  const { state } = useDemo();
+  const { state, me } = useDemo();
   const wide = useIsWide();
+  if (me) return me.id;
   return wide ? 'eng-1' : (state?.phoneUserId ?? 'tech-1');
 }
 
 const Dot = () => <Text style={s.dot}>·</Text>;
 
-/** AI handover summary pinned at the top of the chat (PRD FR-CH-03). */
-export function HandoverBanner({ handover }: { handover: HandoverSummary }) {
-  const { state, lang, t } = useDemo();
-  const ready = (state?.now ?? 0) >= handover.readyAt;
+/** Done / To do / Watch out lists, in the reader's language. */
+function SummaryLists({ done, todo, watchOut }: { done: Translated[]; todo: Translated[]; watchOut: Translated[] }) {
+  const { lang, t } = useDemo();
   const section = (title: string, items: Translated[], color: string, icon: IconName) => (
     <View style={{ gap: 6 }}>
       <View style={s.secHead}>
@@ -43,6 +43,48 @@ export function HandoverBanner({ handover }: { handover: HandoverSummary }) {
     </View>
   );
   return (
+    <View style={{ gap: 12 }}>
+      {section(t('sumDone'), done, Brand.greenDark, 'checkCircle')}
+      {section(t('sumTodo'), todo, '#9A6700', 'clock')}
+      {section(t('sumWatch'), watchOut, Brand.redDark, 'warning')}
+    </View>
+  );
+}
+
+/** Live AI summary of the current shift, rewritten after every message or tick. */
+export function LiveSummaryCard() {
+  const { state, t, summaryBusy } = useDemo();
+  const live = state?.liveSummary;
+  if (!state || !live || live.shift !== state.shift) return null;
+  return (
+    <Card tone="accent">
+      <View style={s.bannerHead}>
+        <Tag label={t('aiSummary')} color={Brand.tealDark} icon="ai" />
+        <View style={s.row}>
+          {summaryBusy ? (
+            <Muted style={{ color: Brand.tealDark }}>{t('aiUpdating')}</Muted>
+          ) : (
+            <>
+              <View style={s.liveDot} />
+              <Muted>
+                {t('liveSummary', { shift: live.shift })} · {timeAgo(live.updatedAt, state.now, t)}
+              </Muted>
+            </>
+          )}
+        </View>
+      </View>
+      <View style={summaryBusy ? { opacity: 0.55 } : undefined}>
+        <SummaryLists done={live.done} todo={live.todo} watchOut={live.watchOut} />
+      </View>
+    </Card>
+  );
+}
+
+/** AI handover summary from the previous shift (PRD FR-CH-03). */
+export function HandoverBanner({ handover }: { handover: HandoverSummary }) {
+  const { state, t } = useDemo();
+  const ready = (state?.now ?? 0) >= handover.readyAt;
+  return (
     <Card tone="accent">
       <View style={s.bannerHead}>
         <Tag label={t('aiSummary')} color={Brand.tealDark} icon="ai" />
@@ -51,15 +93,7 @@ export function HandoverBanner({ handover }: { handover: HandoverSummary }) {
           <Muted>{t('handoverFrom', { from: handover.fromShift, to: handover.toShift })}</Muted>
         </View>
       </View>
-      {!ready ? (
-        <Muted>{t('summarizing')}</Muted>
-      ) : (
-        <View style={{ gap: 12 }}>
-          {section(t('sumDone'), handover.done, Brand.greenDark, 'checkCircle')}
-          {section(t('sumTodo'), handover.todo, '#9A6700', 'clock')}
-          {section(t('sumWatch'), handover.watchOut, Brand.redDark, 'warning')}
-        </View>
-      )}
+      {!ready ? <Muted>{t('summarizing')}</Muted> : <SummaryLists done={handover.done} todo={handover.todo} watchOut={handover.watchOut} />}
     </Card>
   );
 }
@@ -77,6 +111,12 @@ export function Checklist() {
         <Muted>{t('checklistProgress', { done, total: state.checklist.length })}</Muted>
       </View>
       <ProgressBar value={state.checklist.length ? done / state.checklist.length : 0} color={Brand.green} />
+      {state.nextShiftTasks?.length ? (
+        <View style={s.row}>
+          <Icon name="clock" size={13} color={Brand.tealDark} />
+          <Muted style={{ color: Brand.tealDark }}>{t('nextShiftTasks', { n: state.nextShiftTasks.length })}</Muted>
+        </View>
+      ) : null}
       <View style={{ gap: 2 }}>
         {state.checklist.map((c) => {
           const who = state.people.find((p) => p.id === c.doneBy);
@@ -93,6 +133,17 @@ export function Checklist() {
                 {c.done && c.doneAt ? (
                   <Muted>
                     ✓ {who?.id === me ? t('you') : who?.name} <Dot /> {timeAgo(c.doneAt, state.now, t)}
+                    {c.viaChat ? (
+                      <>
+                        {' '}
+                        <Dot /> <Text style={{ color: Brand.tealDark }}>{t('viaChat')}</Text>
+                      </>
+                    ) : null}
+                  </Muted>
+                ) : null}
+                {!c.done && c.addedBy ? (
+                  <Muted>
+                    + {state.people.find((p) => p.id === c.addedBy)?.name ?? '—'} <Dot /> <Text style={{ color: Brand.tealDark }}>{t('viaChat')}</Text>
                   </Muted>
                 ) : null}
               </View>
@@ -128,7 +179,7 @@ function MessageBubble({ msg }: { msg: ChatMessage }) {
         <Muted>
           {LANGS.find((l) => l.code === msg.original)?.label} <Dot /> {timeAgo(msg.createdAt, state.now, t)}
         </Muted>
-        {msg.watchOut ? <Tag label={t('watchOutTag')} color={Brand.redDark} icon="warning" /> : null}
+        {msg.watchOut ? <Tag label={msg.aiFlagged ? `${t('watchOutTag')} · ${t('aiFlagged')}` : t('watchOutTag')} color={Brand.redDark} icon={msg.aiFlagged ? 'ai' : 'warning'} /> : null}
       </View>
       <View style={[s.bubble, mine ? s.bubbleMine : null, msg.watchOut && s.bubbleWatch]}>
         {msg.kind === 'voice' ? (
@@ -159,7 +210,12 @@ function MessageBubble({ msg }: { msg: ChatMessage }) {
           {shown}
         </Body>
       </View>
-      {foreign ? (
+      {msg.pending && state.now - msg.createdAt < 120_000 ? (
+        <View style={[s.row, mine && { justifyContent: 'flex-end' }]}>
+          <Icon name="translate" size={12} color={Brand.tealDark} />
+          <Muted style={{ color: Brand.tealDark }}>{t('translating')}</Muted>
+        </View>
+      ) : foreign ? (
         msg.translated ? (
           <Pressable onPress={() => setOrig((o) => !o)} style={[s.row, mine && { justifyContent: 'flex-end' }]}>
             <Icon name="translate" size={12} color={Brand.sub} />
@@ -182,11 +238,23 @@ function Composer() {
   const me = useMe();
   const [text, setText] = useState('');
   const [watch, setWatch] = useState(false);
-  const send = (presetId?: string) => {
-    if (!presetId && !text.trim()) return;
-    act({ type: 'chat', authorId: me, lang, presetId, text: presetId ? undefined : text, watchOut: presetId ? watch || undefined : watch });
+  // Saving is quick now (the translation follows in the background); this just stops double sends.
+  const [busy, setBusy] = useState(false);
+  const send = async (presetId?: string) => {
+    if (busy || (!presetId && !text.trim())) return;
+    const typed = text;
     setText('');
     setWatch(false);
+    if (presetId) {
+      await act({ type: 'chat', authorId: me, lang, presetId, watchOut: watch || undefined });
+      return;
+    }
+    setBusy(true);
+    try {
+      await act({ type: 'chat', authorId: me, lang, text: typed, watchOut: watch });
+    } finally {
+      setBusy(false);
+    }
   };
   const quick = CHAT_PRESETS.filter((p) => p.kind === 'text');
   return (
@@ -212,9 +280,11 @@ function Composer() {
           style={s.input}
           onSubmitEditing={() => send()}
           returnKeyType="send"
+          maxLength={300}
         />
-        <Button icon="send" onPress={() => send()} disabled={!text.trim()} />
+        <Button icon="send" onPress={() => send()} disabled={busy || !text.trim()} />
       </View>
+
     </Card>
   );
 }
@@ -233,16 +303,35 @@ function Messages() {
 
 /** The whole shift chat screen: pinned AI banner, checklist, messages, composer. */
 export function ShiftChat() {
-  const { state, act, t } = useDemo();
+  const { state, act, t, catchUp } = useDemo();
   const wide = useIsWide();
+  const [ending, setEnding] = useState(false);
+  // When the chat opens, let the AI read the messages that are already there (once per visit).
+  const loaded = !!state;
+  const caughtUp = useRef(false);
+  useEffect(() => {
+    if (!loaded || caughtUp.current) return;
+    caughtUp.current = true;
+    void catchUp();
+  }, [loaded, catchUp]);
   if (!state) return null;
   const latest = state.handovers[0];
-  const endBtn = <Button icon="ai" label={t('endShift')} onPress={() => act({ type: 'endShift' })} />;
+  const endShift = async () => {
+    if (ending) return;
+    setEnding(true);
+    try {
+      await act({ type: 'endShift' });
+    } finally {
+      setEnding(false);
+    }
+  };
+  const endBtn = <Button icon="ai" label={ending ? t('aiWriting') : t('endShift')} disabled={ending} onPress={endShift} />;
 
   if (wide) {
     return (
       <View style={s.cols}>
         <View style={{ flex: 1.6, gap: 16 }}>
+          <LiveSummaryCard />
           {latest ? <HandoverBanner handover={latest} /> : null}
           <Messages />
           <Composer />
@@ -257,6 +346,7 @@ export function ShiftChat() {
   }
   return (
     <View style={{ gap: 16 }}>
+      <LiveSummaryCard />
       {latest ? <HandoverBanner handover={latest} /> : null}
       <Checklist />
       <Messages />
@@ -296,6 +386,7 @@ const s = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' },
   wrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, alignItems: 'center' },
   dot: { color: Brand.sub },
+  liveDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: Brand.green },
   cols: { flexDirection: 'row', gap: 24, alignItems: 'flex-start' },
   bannerHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
   secHead: { flexDirection: 'row', alignItems: 'center', gap: 6 },

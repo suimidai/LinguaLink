@@ -181,8 +181,11 @@ export function Button({
   small,
   disabled,
   style,
+  a11yLabel,
 }: {
   label?: string;
+  /** Name for screen readers when the button shows only an icon. */
+  a11yLabel?: string;
   onPress: () => void;
   variant?: ButtonVariant;
   icon?: IconName;
@@ -196,7 +199,7 @@ export function Button({
       onPress={onPress}
       disabled={disabled}
       accessibilityRole="button"
-      accessibilityLabel={label}
+      accessibilityLabel={label ?? a11yLabel}
       style={({ pressed, hovered, focused }: { pressed: boolean; hovered?: boolean; focused?: boolean }) => [
         styles.button,
         small && styles.buttonSmall,
@@ -286,8 +289,8 @@ export const styles = StyleSheet.create({
   buttonHover: { transform: [{ translateY: -1 }] },
   focusRing: { outlineColor: Brand.teal, outlineWidth: 2, outlineStyle: 'solid', outlineOffset: 2 },
   buttonText: { fontSize: T.body, fontWeight: '700' },
-  chip: { flexDirection: 'row', alignItems: 'center', gap: 6, borderRadius: 6, borderWidth: 1, borderColor: Brand.border, backgroundColor: '#FFFFFF', paddingHorizontal: S.md - 2, paddingVertical: 6, minHeight: 32 },
-  chipText: { fontSize: T.small, fontWeight: '700', color: Brand.sub },
+  chip: { flexDirection: 'row', alignItems: 'center', gap: 6, borderRadius: 6, borderWidth: 1, borderColor: Brand.border, backgroundColor: '#FFFFFF', paddingHorizontal: S.md - 2, paddingVertical: 6, minHeight: 32, maxWidth: '100%' },
+  chipText: { fontSize: T.small, fontWeight: '700', color: Brand.sub, flexShrink: 1 },
   row: { flexDirection: 'row', flexWrap: 'wrap', gap: S.sm, alignItems: 'center' },
   progressTrack: { height: 8, borderRadius: 4, backgroundColor: '#E3EAEC', overflow: 'hidden' },
   progressFill: { height: 8, borderRadius: 4 },
